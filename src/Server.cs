@@ -6,6 +6,7 @@ namespace ProtoSharp
 {
     public class Server
     {
+        public const string VERSION = "0.1.0";
         private static Server? serverInstance;
         private readonly TcpListener tcpListener;
 
@@ -19,22 +20,31 @@ namespace ProtoSharp
 
         internal Server(params string[] args)
         {
-            Console.WriteLine("Starting ProtoSharp server");
+            Console.WriteLine($"Starting ProtoSharp v{VERSION} server...");
             tcpListener = new TcpListener(IPAddress.Loopback, 5555);
+            Start().GetAwaiter().GetResult();
+        }
+
+        private async Task Start()
+        {
             tcpListener.Start();
 
-            while(true)
+            while (true)
             {
-                var socket = tcpListener.AcceptSocket();
-                Console.WriteLine("New request");
-                Task.Run(async () => {
-                    var body = "ProtoSharp";
-                    var response = $"HTTP/1.1 200 OK\nServer: ProtoSharp\nContent-Type: text/plain\nContent-Length: {body.Length}\n\n{body}";
+                var socket = await tcpListener.AcceptSocketAsync();
 
-                    await socket.SendAsync(Encoding.UTF8.GetBytes(response), SocketFlags.None);
-                    socket.Close();
-                });
+                var body = "ProtoSharp";
+                var headers = $"HTTP/1.1 200 OK\nServer: ProtoSharp\nContent-Type: text/plain\nContent-Length: {body.Length}";
+                await SendResponseAsync(socket, headers, body);
             }
+        }
+
+        private async Task SendResponseAsync(Socket socket, string headers, string body)
+        {
+            var response = $"{headers}\n\n{body}\n";
+            await socket.SendAsync(Encoding.UTF8.GetBytes(response), SocketFlags.None);
+            socket.Shutdown(SocketShutdown.Send);
+            socket.Close();
         }
 
         public bool IsAlive => tcpListener != null;
